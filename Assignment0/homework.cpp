@@ -1,6 +1,8 @@
 #include <Eigen/Core>
 #include <iostream>
 
+auto const M_PI = std::acos(-1);
+
 int main() {
     auto p = Eigen::Vector3d(2.0, 1.0, 1.0);
     // counter clock 45 degree

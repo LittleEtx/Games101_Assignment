@@ -6,7 +6,7 @@
 #define RASTERIZER_GLOBAL_H
 
 typedef unsigned char u08;
-#define MY_PI 3.1415926
+#define MY_PI 3.1415926f
 #define TWO_PI (2.0* MY_PI)
 
 

@@ -58,23 +58,24 @@ Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio,
     // Then return it.
 
     Eigen::Matrix4f perspective;
-    perspective << zNear, 0, 0, 0,
-                   0, zNear, 0, 0,
-                   0, 0, zNear + zFar, -zNear * zFar,
+    perspective << -zNear, 0, 0, 0,
+                   0, -zNear, 0, 0,
+                   0, 0, -(zNear + zFar), -zNear * zFar,
                    0, 0, 1, 0;
 
-    float width = 2 * zNear * std::tan(eye_fov / 2);
-    float height = width / aspect_ratio;
     Eigen::Matrix4f translate;
     translate << 1, 0, 0, 0,
                  0, 1, 0, 0,
-                 0, 0, 1, -(zNear + zFar) / 2,
+                 0, 0, 1, zNear + zFar / 2,
                  0, 0, 0, 1;
 
+    float width = 2 * zNear * std::tan(eye_fov / 2);
+    float height = width / aspect_ratio;
+    float depth = zFar - zNear;
     Eigen::Matrix4f scale;
     scale << 2 / width, 0, 0, 0,
              0, 2 / height, 0, 0,
-             0, 0, 2 / (zNear - zFar), 0,
+             0, 0, 2 / depth, 0,
              0, 0, 0, 1;
 
     projection = scale * translate * perspective * projection;

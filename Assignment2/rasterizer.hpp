@@ -92,7 +92,8 @@ namespace rst
 
         std::vector<Eigen::Vector3f> frame_buf;
 
-        std::vector<float> depth_buf;
+        std::vector<std::array<float, SAMPLE_NUM * SAMPLE_NUM>> depth_buf;
+        std::vector<std::array<Eigen::Vector3f, SAMPLE_NUM * SAMPLE_NUM>> color_buf;
         int get_index(int x, int y);
 
         int width, height;

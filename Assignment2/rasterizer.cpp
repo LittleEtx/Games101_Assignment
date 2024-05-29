@@ -40,7 +40,7 @@ auto to_vec4(const Eigen::Vector3f& v3, float w = 1.0f)
 }
 
 
-static bool insideTriangle(int x, int y, const Vector3f* _v)
+static bool insideTriangle(float x, float y, const Vector3f* _v)
 {
     Eigen::Vector2f v[3];
     for (int i = 0; i < 3; ++i) {
@@ -126,22 +126,41 @@ void rst::rasterizer::rasterize_triangle(const Triangle& t) {
     // iterate through the pixel and find if the current pixel is inside the triangle
     for (int x = 0; x < width; ++x) {
         for (int y = 0; y < height; ++y) {
-            if (!insideTriangle(x, y, t.v)) {
+
+            // MSAA
+            bool update_frame = false;
+            int index = get_index(x, y);
+            for (int i = 0; i < SAMPLE_NUM; ++i) {
+                for (int j = 0; j < SAMPLE_NUM; ++j) {
+                    float x_sample = x + (i + 0.5) / SAMPLE_NUM;
+                    float y_sample = y + (j + 0.5) / SAMPLE_NUM;
+                    if (!insideTriangle(x_sample, y_sample, t.v)) {
+                        continue;
+                    }
+                    // If so, use the following code to get the interpolated z value.
+                    auto [alpha, beta, gamma] = computeBarycentric2D(x_sample, y_sample, t.v);
+                    float w_reciprocal = 1.0f/(alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
+                    float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
+                    z_interpolated *= w_reciprocal;
+                    auto depth = - z_interpolated;
+                    if (depth_buf[index][i * SAMPLE_NUM + j] > depth) {
+                        depth_buf[index][i * SAMPLE_NUM + j] = depth;
+                        color_buf[index][i * SAMPLE_NUM + j] = t.getColor();
+                        update_frame = true;
+                    }
+                }
+            }
+            if (!update_frame) {
                 continue;
             }
-            // If so, use the following code to get the interpolated z value.
-            auto [alpha, beta, gamma] = computeBarycentric2D(x, y, t.v);
-            float w_reciprocal = 1.0f/(alpha / v[0].w() + beta / v[1].w() + gamma / v[2].w());
-            float z_interpolated = alpha * v[0].z() / v[0].w() + beta * v[1].z() / v[1].w() + gamma * v[2].z() / v[2].w();
-            z_interpolated *= w_reciprocal;
-
-            auto depth = - z_interpolated;
-            int index = get_index(x, y);
-            if (depth < depth_buf[index]) {
-                depth_buf[index] = depth;
-                Eigen::Vector3f color = t.getColor();
-                set_pixel(Vector3f(x, y, depth), color);
+            Eigen::Vector3f color = Eigen::Vector3f(0, 0, 0);
+            for (int i = 0; i < SAMPLE_NUM; ++i) {
+                for (int j = 0; j < SAMPLE_NUM; ++j) {
+                    color += color_buf[index][i * SAMPLE_NUM + j];
+                }
             }
+            color /= SAMPLE_NUM * SAMPLE_NUM;
+            set_pixel(Vector3f(x, y, 0), color);
         }
     }
 }
@@ -169,7 +188,8 @@ void rst::rasterizer::clear(rst::Buffers buff)
     }
     if ((buff & rst::Buffers::Depth) == rst::Buffers::Depth)
     {
-        std::fill(depth_buf.begin(), depth_buf.end(), std::numeric_limits<float>::infinity());
+        std::fill(depth_buf.begin(), depth_buf.end(), std::array<float, SAMPLE_NUM * SAMPLE_NUM>{std::numeric_limits<float>::infinity()});
+        std::fill(color_buf.begin(), color_buf.end(), std::array<Eigen::Vector3f, SAMPLE_NUM * SAMPLE_NUM>{Eigen::Vector3f{0, 0, 0}});
     }
 }
 
@@ -177,6 +197,7 @@ rst::rasterizer::rasterizer(int w, int h) : width(w), height(h)
 {
     frame_buf.resize(w * h);
     depth_buf.resize(w * h);
+    color_buf.resize(w * h);
 }
 
 int rst::rasterizer::get_index(int x, int y)

@@ -3,7 +3,7 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 
-constexpr double MY_PI = 3.1415926;
+constexpr float MY_PI = 3.1415926;
 
 Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
 {
@@ -18,13 +18,31 @@ Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
     return view;
 }
 
-Eigen::Matrix4f get_model_matrix(float rotation_angle)
+Eigen::Matrix4f get_model_matrix(float roll, float pitch, float yaw)
 {
     Eigen::Matrix4f model = Eigen::Matrix4f::Identity();
 
-    // TODO: Implement this function
     // Create the model matrix for rotating the triangle around the Z axis.
     // Then return it.
+    Eigen::Matrix4f rotate_x;
+    rotate_x << 1, 0, 0, 0,
+                0, std::cos(pitch / 180 * MY_PI), -std::sin(pitch / 180 * MY_PI), 0,
+                0, std::sin(pitch / 180 * MY_PI), std::cos(pitch / 180 * MY_PI), 0,
+                0, 0, 0, 1;
+
+    Eigen::Matrix4f rotate_y;
+    rotate_y << std::cos(yaw / 180 * MY_PI), 0, std::sin(yaw / 180 * MY_PI), 0,
+                0, 1, 0, 0,
+                -std::sin(yaw / 180 * MY_PI), 0, std::cos(yaw / 180 * MY_PI), 0,
+                0, 0, 0, 1;
+
+    Eigen::Matrix4f rotate_z;
+    rotate_z << std::cos(roll / 180 * MY_PI), -std::sin(roll / 180 * MY_PI), 0, 0,
+                std::sin(roll / 180 * MY_PI), std::cos(roll / 180 * MY_PI), 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1;
+
+    model = rotate_z * rotate_y * rotate_x * model;
 
     return model;
 }
@@ -36,10 +54,30 @@ Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio,
 
     Eigen::Matrix4f projection = Eigen::Matrix4f::Identity();
 
-    // TODO: Implement this function
     // Create the projection matrix for the given parameters.
     // Then return it.
 
+    Eigen::Matrix4f perspective;
+    perspective << zNear, 0, 0, 0,
+                   0, zNear, 0, 0,
+                   0, 0, zNear + zFar, -zNear * zFar,
+                   0, 0, 1, 0;
+
+    float width = 2 * zNear * std::tan(eye_fov / 2);
+    float height = width / aspect_ratio;
+    Eigen::Matrix4f translate;
+    translate << 1, 0, 0, 0,
+                 0, 1, 0, 0,
+                 0, 0, 1, -(zNear + zFar) / 2,
+                 0, 0, 0, 1;
+
+    Eigen::Matrix4f scale;
+    scale << 2 / width, 0, 0, 0,
+             0, 2 / height, 0, 0,
+             0, 0, 2 / (zNear - zFar), 0,
+             0, 0, 0, 1;
+
+    projection = scale * translate * perspective * projection;
     return projection;
 }
 
@@ -76,7 +114,7 @@ int main(int argc, const char** argv)
     if (command_line) {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
 
-        r.set_model(get_model_matrix(angle));
+        r.set_model(get_model_matrix(angle, 0, 0));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
 
@@ -88,11 +126,11 @@ int main(int argc, const char** argv)
 
         return 0;
     }
-
+    float roll = 0, pitch = 0, yaw = 0;
     while (key != 27) {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
 
-        r.set_model(get_model_matrix(angle));
+        r.set_model(get_model_matrix(roll, pitch, yaw));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
 
@@ -103,13 +141,25 @@ int main(int argc, const char** argv)
         cv::imshow("image", image);
         key = cv::waitKey(10);
 
-        std::cout << "frame count: " << frame_count++ << '\n';
+        std::cout << "frame count: " << frame_count++ << ", key pressed: " << key << '\n';
 
         if (key == 'a') {
-            angle += 10;
+            yaw += 10;
         }
         else if (key == 'd') {
-            angle -= 10;
+            yaw -= 10;
+        }
+        else if (key == 'w') {
+            pitch += 10;
+        }
+        else if (key == 's') {
+            pitch -= 10;
+        }
+        else if (key == 'q') {
+            roll += 10;
+        }
+        else if (key == 'e') {
+            roll -= 10;
         }
     }
 

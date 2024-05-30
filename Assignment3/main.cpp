@@ -49,8 +49,27 @@ Eigen::Matrix4f get_model_matrix(float angle)
 
 Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio, float zNear, float zFar)
 {
-    // TODO: Use the same projection matrix from the previous assignments
+    Eigen::Matrix4f perspective;
+    perspective << -zNear, 0, 0, 0,
+                   0, -zNear, 0, 0,
+                   0, 0, -(zNear + zFar), -zNear * zFar,
+                   0, 0, 1, 0;
 
+    Eigen::Matrix4f translate;
+    translate << 1, 0, 0, 0,
+                 0, 1, 0, 0,
+                 0, 0, 1, zNear + zFar / 2,
+                 0, 0, 0, 1;
+
+    float width = 2 * zNear * std::tan(eye_fov / 2);
+    float height = width / aspect_ratio;
+    float depth = zFar - zNear;
+    Eigen::Matrix4f scale;
+    scale << 2 / width, 0, 0, 0,
+             0, 2 / height, 0, 0,
+             0, 0, 2 / depth, 0,
+             0, 0, 0, 1;
+    return scale * translate * perspective;
 }
 
 Eigen::Vector3f vertex_shader(const vertex_shader_payload& payload)
@@ -140,9 +159,18 @@ Eigen::Vector3f phong_fragment_shader(const fragment_shader_payload& payload)
     Eigen::Vector3f result_color = {0, 0, 0};
     for (auto& light : lights)
     {
-        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
+        // For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular*
         // components are. Then, accumulate that result on the *result_color* object.
-        
+        Eigen::Vector3f light_dir = (light.position - point).normalized();
+        Eigen::Vector3f view_dir = (eye_pos - point).normalized();
+        Eigen::Vector3f h = (light_dir + view_dir).normalized();
+        Eigen::Vector3f direct_light_intensity = light.intensity / (point - light.position).squaredNorm();
+
+        Eigen::Vector3f ambient = ka.cwiseProduct(amb_light_intensity);
+        Eigen::Vector3f diffuse = kd.cwiseProduct(direct_light_intensity) * std::max(0.f, normal.dot(light_dir));
+        Eigen::Vector3f specular = ks.cwiseProduct(direct_light_intensity) * std::pow(std::max(0.f, normal.dot(h)), p);
+
+        result_color += ambient + diffuse + specular;
     }
 
     return result_color * 255.f;
@@ -247,10 +275,15 @@ int main(int argc, const char** argv)
 
     std::string filename = "output.png";
     objl::Loader Loader;
-    std::string obj_path = "../models/spot/";
+    std::string base_path = "models/spot/";
+    std::string obj_path = "spot_triangulated_good.obj";
 
     // Load .obj File
-    bool loadout = Loader.LoadFile("../models/spot/spot_triangulated_good.obj");
+    bool loadout = Loader.LoadFile(base_path + obj_path);
+    if (!loadout) {
+        std::cout << "Failed to load object file!" << std::endl;
+        std::abort();
+    }
     for(auto mesh:Loader.LoadedMeshes)
     {
         for(int i=0;i<mesh.Vertices.size();i+=3)
@@ -269,7 +302,7 @@ int main(int argc, const char** argv)
     rst::rasterizer r(700, 700);
 
     auto texture_path = "hmap.jpg";
-    r.set_texture(Texture(obj_path + texture_path));
+    r.set_texture(Texture(base_path + texture_path));
 
     std::function<Eigen::Vector3f(fragment_shader_payload)> active_shader = phong_fragment_shader;
 
@@ -358,7 +391,7 @@ int main(int argc, const char** argv)
         {
             angle += 0.1;
         }
-
+        std::cout << "frame count: " << frame_count++ << std::endl;
     }
     return 0;
 }

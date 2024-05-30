@@ -103,7 +103,7 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
     if (payload.texture)
     {
         // Get the texture value at the texture coordinates of the current fragment
-        return_color = payload.texture->getColor(payload.tex_coords.x(), payload.tex_coords.y());
+        return_color = payload.texture->getColorBilinear(payload.tex_coords.x(), payload.tex_coords.y());
     }
     Eigen::Vector3f texture_color;
     texture_color << return_color.x(), return_color.y(), return_color.z();
@@ -228,7 +228,7 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
         Eigen::Vector3f b = normal.cross(t);
         Eigen::Matrix3f TBN;
         TBN << t, b, normal;
-        auto H = [&payload](float u, float v) { return payload.texture->getColor(u, v).norm(); };
+        auto H = [&payload](float u, float v) { return payload.texture->getColorBilinear(u, v).norm(); };
         auto dU = kh * kn * (H(u + 1.0f / w, v) - H(u, v));
         auto dV = kh * kn * (H(u, v + 1.0f / h) - H(u, v));
         Eigen::Vector3f ln = {-dU, -dV, 1};
@@ -300,7 +300,7 @@ Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
         Eigen::Vector3f b = normal.cross(t);
         Eigen::Matrix3f TBN;
         TBN << t, b, normal;
-        auto H = [&payload](float u, float v) { return payload.texture->getColor(u, v).norm(); };
+        auto H = [&payload](float u, float v) { return payload.texture->getColorBilinear(u, v).norm(); };
         auto dU = kh * kn * (H(u + 1.0f / w, v) - H(u, v));
         auto dV = kh * kn * (H(u, v + 1.0f / h) - H(u, v));
         Eigen::Vector3f ln = {-dU, -dV, 1};
@@ -322,8 +322,10 @@ int main(int argc, const char** argv)
 
     std::string filename = "output.png";
     objl::Loader Loader;
-    std::string base_path = "models/spot/";
-    std::string obj_path = "spot_triangulated_good.obj";
+    std::string base_path       = "models/spot/";
+    std::string obj_path        = "spot_triangulated_good.obj";
+    std::string texture_path    = "spot_texture.png";
+    std::string height_map_path = "hmap.jpg";
 
     // Load .obj File
     bool loadout = Loader.LoadFile(base_path + obj_path);
@@ -347,10 +349,6 @@ int main(int argc, const char** argv)
     }
 
     rst::rasterizer r(700, 700);
-
-    auto texture_path = "hmap.jpg";
-    r.set_texture(Texture(base_path + texture_path));
-
     std::function<Eigen::Vector3f(fragment_shader_payload)> active_shader = phong_fragment_shader;
 
     if (argc >= 2)
@@ -362,7 +360,6 @@ int main(int argc, const char** argv)
         {
             std::cout << "Rasterizing using the texture shader\n";
             active_shader = texture_fragment_shader;
-            texture_path = "spot_texture.png";
             r.set_texture(Texture(base_path + texture_path));
         }
         else if (argc == 3 && std::string(argv[2]) == "normal")
@@ -379,11 +376,13 @@ int main(int argc, const char** argv)
         {
             std::cout << "Rasterizing using the bump shader\n";
             active_shader = bump_fragment_shader;
+            r.set_texture(Texture(base_path + height_map_path));
         }
         else if (argc == 3 && std::string(argv[2]) == "displacement")
         {
             std::cout << "Rasterizing using the bump shader\n";
             active_shader = displacement_fragment_shader;
+            r.set_texture(Texture(base_path + height_map_path));
         }
     }
 
@@ -432,10 +431,12 @@ int main(int argc, const char** argv)
 
         if (key == 'a' )
         {
+            std::cout << "a is pressed" << std::endl;
             angle -= 0.1;
         }
         else if (key == 'd')
         {
+            std::cout << "d is pressed" << std::endl;
             angle += 0.1;
         }
         std::cout << "frame count: " << frame_count++ << std::endl;

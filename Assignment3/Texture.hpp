@@ -10,7 +10,11 @@
 class Texture{
 private:
     cv::Mat image_data;
-
+    template<typename T>
+    inline T clamp(T x, T a, T b)
+    {
+        return x < a ? a : (x > b ? b : x);
+    }
 public:
     Texture(const std::string& name)
     {
@@ -27,6 +31,22 @@ public:
         auto u_img = u * width;
         auto v_img = (1 - v) * height;
         auto color = image_data.at<cv::Vec3b>(v_img, u_img);
+        return Eigen::Vector3f(color[0], color[1], color[2]);
+    }
+
+    Eigen::Vector3f getColorBilinear(float u, float v)
+    {
+        auto u_img = u * width - 0.5f;
+        auto v_img = (1 - v) * height - 0.5f;
+        auto u_min = clamp((int)std::floor(u_img), 0, width - 1);
+        auto v_min = clamp((int)std::floor(v_img), 0, height - 1);
+        auto u_max = clamp((int)std::ceil(u_img), 0, width - 1);
+        auto v_max = clamp((int)std::ceil(v_img), 0, height - 1);
+        auto u_ratio = u_img - u_min;
+        auto v_ratio = v_img - v_min;
+        auto color1 = image_data.at<cv::Vec3b>(v_min, u_min) * (1 - u_ratio) + image_data.at<cv::Vec3b>(v_min, u_max) * u_ratio;
+        auto color2 = image_data.at<cv::Vec3b>(v_max, u_min) * (1 - u_ratio) + image_data.at<cv::Vec3b>(v_max, u_max) * u_ratio;
+        auto color = color1 * (1 - v_ratio) + color2 * v_ratio;
         return Eigen::Vector3f(color[0], color[1], color[2]);
     }
 

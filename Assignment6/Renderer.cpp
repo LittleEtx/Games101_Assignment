@@ -2,7 +2,9 @@
 // Created by goksu on 2/25/20.
 //
 
-#include <fstream>
+#include <opencv2/core/mat.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
 #include "Scene.hpp"
 #include "Renderer.hpp"
 
@@ -25,31 +27,28 @@ void Renderer::Render(const Scene& scene)
     for (uint32_t j = 0; j < scene.height; ++j) {
         for (uint32_t i = 0; i < scene.width; ++i) {
             // generate primary ray direction
-            float x = (2 * (i + 0.5) / (float)scene.width - 1) *
+            float x = (2 * (i + 0.5f) / (float)scene.width - 1) *
                       imageAspectRatio * scale;
-            float y = (1 - 2 * (j + 0.5) / (float)scene.height) * scale;
-            // TODO: Find the x and y positions of the current pixel to get the
-            // direction
-            //  vector that passes through it.
+            float y = (1 - 2 * (j + 0.5f) / (float)scene.height) * scale;
+            // Find the x and y positions of the current pixel to get the
+            // direction vector that passes through it.
             // Also, don't forget to multiply both of them with the variable
             // *scale*, and x (horizontal) variable with the *imageAspectRatio*
 
             // Don't forget to normalize this direction!
-
+            Vector3f dir = normalize(Vector3f(x, y, -1));
+            framebuffer[i + j * scene.width] = scene.castRay(Ray(eye_pos, dir), 0);
         }
         UpdateProgress(j / (float)scene.height);
     }
     UpdateProgress(1.f);
 
-    // save framebuffer to file
-    FILE* fp = fopen("binary.ppm", "wb");
-    (void)fprintf(fp, "P6\n%d %d\n255\n", scene.width, scene.height);
-    for (auto i = 0; i < scene.height * scene.width; ++i) {
-        static unsigned char color[3];
-        color[0] = (unsigned char)(255 * clamp(0, 1, framebuffer[i].x));
-        color[1] = (unsigned char)(255 * clamp(0, 1, framebuffer[i].y));
-        color[2] = (unsigned char)(255 * clamp(0, 1, framebuffer[i].z));
-        fwrite(color, 1, 3, fp);
-    }
-    fclose(fp);    
+        // use opencv to view the image
+    cv::Mat image(scene.height, scene.width, CV_32FC3, framebuffer.data());
+    image.convertTo(image, CV_8UC3, 255);
+    cv::cvtColor(image, image, cv::COLOR_RGB2BGR);
+    cv::imshow("image", image);
+    // save image
+    cv::imwrite("image.png", image);
+    cv::waitKey(0);
 }
